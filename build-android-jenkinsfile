@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+    environment {
+        
+        FLUTTER_HOME = "/home/jenkins/downloads/flutter/bin/flutter"
+    }
+    stages {
+
+        stage('Checkout source code') {
+            steps {
+                //sh 'rm -rf $WORKSPACE/$SERVICE_NAME && mkdir -p $WORKSPACE/$SERVICE_NAME'
+                dir("$SERVICE_NAME") {
+                    echo "workspace $WORKSPACE"
+                    git branch: "${GIT_BRANCH}",
+                    credentialsId: "${GIT_CREDENTIALS_ID}",
+                    url: "${GIT_URL}"
+                }
+            }
+        }
+
+        stage('Initiate') {
+            steps {
+                dir("app-name") {
+                    sh 'flutter clean'
+                    sh 'flutter pub get'
+                }
+            }
+        }
+
+        stage('Flutter Build') {
+            steps {
+                script {
+                    def flutterCmd = "/home/jenkins/downloads/flutter/bin/flutter"
+                    dir("app-name") {
+                        sh "${flutterCmd} clean"
+                        sh "${flutterCmd} build apk --obfuscate --split-debug-info=/home/jenkins/android.log"
+                    }
+                }
+            }
+
+        }
+        stage('Find APK') {
+            steps {
+                script {
+                    def apkPath = sh(script: "find ${WORKSPACE}/$SERVICE_NAME/build -name 'app-release.apk'", returnStdout: true).trim()
+                    echo "APK Path: ${apkPath}"
+                    // You can set this path to be used later in the pipeline
+                    env.APK_PATH = apkPath
+        }
+    }
+}
+
+
+        stage('Distribute') {
+            steps {
+                sh 'appcenter distribute release -f "/home/jenkins/jenkins-agent/workspace/Android/build-release-android-apk/sasai-superapp-mobile/build/app/outputs/flutter-apk/app-release.apk" -g "qa sandbox" -a "saumyadip.pramanik/sasai-super-app" --token "f8e0512fde2623438286bd1c1b3f63f85bc01111"'
+            }
+
+        }
+    }
+}
